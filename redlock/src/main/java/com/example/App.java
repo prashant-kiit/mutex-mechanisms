@@ -2,8 +2,6 @@ package com.example;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.params.SetParams;
-import java.util.ArrayList;
-import java.util.List;
 
 public class App {
     private static Integer NO_OF_INSTANCES = 20;
@@ -25,14 +23,13 @@ public class App {
                 SetParams setParams = new SetParams();
                 setParams.nx();
                 setParams.ex(EXPIRATION_DURATION_SECONDS);
-                List<Counter> results = new ArrayList<Counter>();
+                Integer unlockedResourcesCount = 0;
 
                 while (true) {
                     for (Counter counter : counters) {
-                        String result = jedis.set(RESOURCE_KEY + counter.getName(), Thread.currentThread().getName(),
-                                setParams);
-                        if (!"OK".equals(result)) {
-                            results.add(counter);
+                        String result = jedis.get(RESOURCE_KEY);
+                        if (result == null) {
+                            unlockedResourcesCount++;
                         } else {
                             System.out.println(
                                     "Locked acquired by " + Thread.currentThread().getName() + " on Counter "
@@ -40,8 +37,8 @@ public class App {
                         }
                     }
 
-                    if (results.size() >= QUORUM) {
-                        for (Counter counter : results) {
+                    if (unlockedResourcesCount >= QUORUM) {
+                        for (Counter counter : counters) {
                             jedis.del(RESOURCE_KEY + counter.getName());
                             jedis.set(RESOURCE_KEY + counter.getName(), Thread.currentThread().getName(), setParams);
                             System.out.println(
